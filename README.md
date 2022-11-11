@@ -1,0 +1,1 @@
+This python file handles the communication between Home Assistant and the SolarEdge Portal.

@@ -319,7 +319,7 @@ class SolarEdgeOptimizerData:
                 rawdate.split(' ')[0],rawdate.split(' ')[1],rawdate.split(' ')[2],
                 rawdate.split(' ')[3],rawdate.split(' ')[5]
             )
-            self.lastmeasurement = new_time
+            self.lastmeasurement = datetime.strptime(new_time, "%a %b %d %H:%M:%S %Y")
 
             self.model = json_object["model"]
             self.manufacturer = json_object["manufacturer"]

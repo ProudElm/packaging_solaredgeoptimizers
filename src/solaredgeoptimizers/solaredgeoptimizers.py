@@ -1,23 +1,14 @@
 """ My module """
 import requests
 import json
-#import jsonfinder
 import logging
+import pytz
+
 from requests import Session
 from datetime import datetime, timedelta
+from jsonfinder import jsonfinder
 
 _LOGGER = logging.getLogger(__name__)
-
-# from requests.auth import HTTPBasicAuth
-
-
-def main():
-    # Test for imports
-    try:
-        import jsonfinder
-    except Exception as err:
-        print("Import error")
-        print(err)
 
 class solaredgeoptimizers:
     def __init__(self, siteid, username, password):
@@ -63,7 +54,7 @@ class solaredgeoptimizers:
         r = requests.get(url, **kwargs)
 
         if r.status_code == 200:
-            json_object = decodeResult(r.text)
+            json_object = self.decodeResult(r.text)
             try:
                 if json_object["lastMeasurementDate"] == "":
                     _LOGGER.info("Skipping optimizer %s without measurements", itemId)
@@ -82,12 +73,17 @@ class solaredgeoptimizers:
 
         solarsite = self.requestListOfAllPanels()
 
+        lifetimeenergy = json.loads(self.getLifeTimeEnergy())
+
         data = []
         for inverter in solarsite.inverters:
             for string in inverter.strings:
                 for optimizer in string.optimizers:
                     info = self.requestSystemData(optimizer.optimizerId)
                     if info is not None:
+                        # Life time energy adding
+                        info.lifetime_energy = (float(lifetimeenergy[str(optimizer.optimizerId)]["unscaledEnergy"])) / 1000
+
                         data.append(info)
 
         return data
@@ -172,7 +168,7 @@ class solaredgeoptimizers:
 
         return maincookiestring
 
-    def decodeResult(result):
+    def decodeResult(self, result):
         json_result = ""
         for _, __, obj in jsonfinder(result, json_only=True):
             json_result = obj
@@ -306,6 +302,9 @@ class SolarEdgeOptimizerData:
         self.power = ""
         self.voltage = ""
 
+        # Extra info
+        self.lifetime_energy = ""
+
         if paneelid is not None:
             self._json_obj = json_object
 
@@ -314,12 +313,15 @@ class SolarEdgeOptimizerData:
             self.paneel_id = paneelid
             self.paneel_desciption = json_object["description"]
             rawdate = json_object["lastMeasurementDate"]
-            # Tue Nov 01 16:53:41 GMT 2022
-            self.lastmeasurement = datetime.strptime(
-                rawdate, "%a %b %d %H:%M:%S GMT %Y"
-            )
-            self.model = json_object["model"]
 
+            # Removing the Timezone information
+            new_time = "{} {} {} {} {}".format(
+                rawdate.split(' ')[0],rawdate.split(' ')[1],rawdate.split(' ')[2],
+                rawdate.split(' ')[3],rawdate.split(' ')[5]
+            )
+            self.lastmeasurement = new_time
+
+            self.model = json_object["model"]
             self.manufacturer = json_object["manufacturer"]
 
             # Waarden
@@ -329,6 +331,3 @@ class SolarEdgeOptimizerData:
             ]
             self.power = json_object["measurements"]["Power [W]"]
             self.voltage = json_object["measurements"]["Voltage [V]"]
-
-if __name__ == '__main__':
-    main()

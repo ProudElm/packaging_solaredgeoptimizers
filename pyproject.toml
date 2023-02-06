@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "solaredgeoptimizers"
-version = "1.0.0"
+version = "1.0.10"
 authors = [
   { name="Job van de Sande", email="jobvandesande@outlook.com" },
 ]
@@ -20,3 +20,6 @@ classifiers = [
 [project.urls]
 "Homepage" = "https://github.com/ProudElm/packaging_solaredgeoptimizers"
 "Bug Tracker" = "https://github.com/ProudElm/packaging_solaredgeoptimizers/issues"
+
+
+

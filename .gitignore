@@ -2,4 +2,6 @@
 dist/solaredgeoptimizers-1.0.0.tar.gz
 dist/solaredgeoptimizers-1.0.0-py3-none-any.whl
 src/solaredgeoptimizers/__pycache__/__init__.cpython-38.pyc
+dist/*
 *.pyc
+build.bat

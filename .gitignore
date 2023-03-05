@@ -5,3 +5,4 @@ src/solaredgeoptimizers/__pycache__/__init__.cpython-38.pyc
 dist/*
 *.pyc
 build.bat
+src/test.py

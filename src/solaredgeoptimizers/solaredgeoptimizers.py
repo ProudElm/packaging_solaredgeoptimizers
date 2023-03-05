@@ -8,8 +8,6 @@ from requests import Session
 from datetime import datetime, timedelta
 from jsonfinder import jsonfinder
 
-_LOGGER = logging.getLogger(__name__)
-
 class solaredgeoptimizers:
     def __init__(self, siteid, username, password):
         self.siteid = siteid
@@ -41,7 +39,6 @@ class solaredgeoptimizers:
 
     def requestListOfAllPanels(self):
         json_obj = json.loads(self.requestLogicalLayout())
-
         return SolarEdgeSite(json_obj)
 
     def requestSystemData(self, itemId):
@@ -57,15 +54,16 @@ class solaredgeoptimizers:
             json_object = self.decodeResult(r.text)
             try:
                 if json_object["lastMeasurementDate"] == "":
-                    _LOGGER.info("Skipping optimizer %s without measurements", itemId)
+                    print("Skipping optimizer %s without measurements", itemId)
                     return None
                 else:
                     return SolarEdgeOptimizerData(itemId, json_object)
             except Exception as errortje:
-                _LOGGER.error(errortje)
-                return None
+                print("Error while processing data")
+                print(errortje)
+                raise errortje
         else:
-            print("Fout bij verzenden. Status code: {}".format(r.status_code))
+            print("Error with sending request. Status code: {}".format(r.status_code))
             print(r.text)
             raise Exception
 
@@ -187,8 +185,16 @@ class SolarEdgeSite:
 
         inverters = []
         for i in range(len(json_obj["logicalTree"]["childIds"])):
-            # inverters.append(SolarEdgeInverter(json_obj["logicalTree"]["children"][i]["data"]))
-            inverters.append(SolarEdgeInverter(json_obj, i))
+
+            # Blijkbaar kan er een powermeter tussen zitten. Checken of dit het geval is
+            # Production Meter -> moeten 1 niveau dieper
+            # Inverter 1 -> dit is 'normaal'
+            if "PRODUCTION METER" not in json_obj["logicalTree"]["children"][i]["data"]["name"].upper():
+                inverters.append(SolarEdgeInverter(json_obj=json_obj, index=i))
+            else:
+                for j in range(len(json_obj["logicalTree"]["children"][i]["childIds"])):
+                    #inverters.append(SolarEdgeInverter(json_obj, i, j, True))
+                    inverters.append(SolarEdgeInverter(json_obj=json_obj, index=i, index2=j, powermeterpresent=True))
 
         return inverters
 
@@ -216,37 +222,39 @@ class SolarEdgeSite:
 
 
 class SolarEdgeInverter:
-    def __init__(self, json_obj, index):
-        self.__index = index
-        self.inverterId = json_obj["logicalTree"]["children"][index]["data"]["id"]
-        self.serialNumber = json_obj["logicalTree"]["children"][index]["data"][
-            "serialNumber"
-        ]
-        self.name = json_obj["logicalTree"]["children"][index]["data"]["name"]
-        self.displayName = json_obj["logicalTree"]["children"][index]["data"][
-            "displayName"
-        ]
-        self.relativeOrder = json_obj["logicalTree"]["children"][index]["data"][
-            "relativeOrder"
-        ]
-        self.type = json_obj["logicalTree"]["children"][index]["data"]["type"]
-        self.operationsKey = json_obj["logicalTree"]["children"][index]["data"][
-            "operationsKey"
-        ]
-        self.strings = self.__GetStringInformation(json_obj)
 
-    def __GetStringInformation(self, json_obj):
+    def __init__(self, json_obj, index, index2=0, powermeterpresent=False):
+        if powermeterpresent:
+            self.inverterId = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["id"]
+            self.serialNumber = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["serialNumber"]
+            self.name = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["name"]
+            self.displayName = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["displayName"]
+            self.relativeOrder = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["relativeOrder"]
+            self.type = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["type"]
+            self.operationsKey = json_obj["logicalTree"]["children"][index]["children"][index2]["data"]["operationsKey"]
 
+            self.strings = self.__GetStringInformation(json_obj["logicalTree"]["children"][index]["children"][index2]["children"], index2)
+        else:
+            self.inverterId = json_obj["logicalTree"]["children"][index]["data"]["id"]
+            self.serialNumber = json_obj["logicalTree"]["children"][index]["data"]["serialNumber"]
+            self.name = json_obj["logicalTree"]["children"][index]["data"]["name"]
+            self.displayName = json_obj["logicalTree"]["children"][index]["data"]["displayName"]
+            self.relativeOrder = json_obj["logicalTree"]["children"][index]["data"]["relativeOrder"]
+            self.type = json_obj["logicalTree"]["children"][index]["data"]["type"]
+            self.operationsKey = json_obj["logicalTree"]["children"][index]["data"]["operationsKey"]
+
+            self.strings = self.__GetStringInformation(json_obj["logicalTree"]["children"][index]["children"], index)
+
+
+    def __GetStringInformation(self, json_obj, index):
         strings = []
 
-        for i in range(
-            len(json_obj["logicalTree"]["children"][self.__index]["children"])
-        ):
-            strings.append(
-                SolarEdgeString(
-                    json_obj["logicalTree"]["children"][self.__index]["children"][i]
-                )
-            )
+        for i in range(len(json_obj)):
+            if "STRING" in json_obj[i]["data"]["name"].upper():
+                strings.append(SolarEdgeString(json_obj[i]))
+            else:
+                for j in range(len(json_obj[i]["children"])):
+                    strings.append(SolarEdgeString(json_obj[i]["children"][j]))
 
         return strings
 
@@ -263,7 +271,6 @@ class SolarEdgeString:
         self.optimizers = self.__GetOptimizers(json_obj)
 
     def __GetOptimizers(self, json_obj):
-
         optimizers = []
 
         for i in range(len(json_obj["children"])):
@@ -331,3 +338,27 @@ class SolarEdgeOptimizerData:
             ]
             self.power = json_object["measurements"]["Power [W]"]
             self.voltage = json_object["measurements"]["Voltage [V]"]
+
+
+if __name__ == '__main__':
+    siteId = "1871534"
+    username = "job_sande@yahoo.co.uk"
+    password = "Fckgwrhqq@2"
+
+    api = solaredgeoptimizers(siteId, username, password)
+
+    test = api.requestListOfAllPanels()
+
+    i = 1
+    for inverter in test.inverters:
+        print("Adding all optimizers from inverter: {}".format(i))
+        for string in inverter.strings:
+            for optimizer in string.optimizers:
+                print("Added optimizer for panel_id to Home Assistant: ",optimizer.displayName)
+
+        i = i + 1
+
+    try:
+        print(len(test.inverters))
+    except Exception as ex:
+        print("error")

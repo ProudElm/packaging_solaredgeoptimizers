@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "solaredgeoptimizers"
-version = "1.0.11"
+version = "1.0.12"
 authors = [
   { name="Job van de Sande", email="jobvandesande@outlook.com" },
 ]

@@ -338,27 +338,3 @@ class SolarEdgeOptimizerData:
             ]
             self.power = json_object["measurements"]["Power [W]"]
             self.voltage = json_object["measurements"]["Voltage [V]"]
-
-
-if __name__ == '__main__':
-    siteId = "1871534"
-    username = "job_sande@yahoo.co.uk"
-    password = "Fckgwrhqq@2"
-
-    api = solaredgeoptimizers(siteId, username, password)
-
-    test = api.requestListOfAllPanels()
-
-    i = 1
-    for inverter in test.inverters:
-        print("Adding all optimizers from inverter: {}".format(i))
-        for string in inverter.strings:
-            for optimizer in string.optimizers:
-                print("Added optimizer for panel_id to Home Assistant: ",optimizer.displayName)
-
-        i = i + 1
-
-    try:
-        print(len(test.inverters))
-    except Exception as ex:
-        print("error")

@@ -58,14 +58,14 @@ class solaredgeoptimizers:
                     return None
                 else:
                     return SolarEdgeOptimizerData(itemId, json_object)
-            except Exception as errortje:
+            except Exception as e:
                 print("Error while processing data")
-                print(errortje)
-                raise errortje
+                print(e)
+                raise Exception("Error while processing data") from e
         else:
             print("Error with sending request. Status code: {}".format(r.status_code))
             print(r.text)
-            raise Exception
+            raise Exception("Problem sending request, status code %d: %s" % (r.status_code, r.text))
 
     def requestAllData(self):
 

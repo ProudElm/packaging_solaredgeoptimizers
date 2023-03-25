@@ -86,6 +86,56 @@ class solaredgeoptimizers:
 
         return data
 
+    def requestPanelHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+        """
+        Request measurement history of a panel given a time window defined by start- and endtime
+        :param itemId: itemId of the panel
+        :param starttime: starttime as datetime or unix timestamp in ms, or None for start of today
+        :param endtime: endtime as datetime or unix timestamp in ms, or None for 24 hour after starttime
+        :param parameter: the measurement parameter to return, choose from:
+            {"Power", "Current", "Voltage", "Energy", "PowerBox Voltage"}
+        :return: dictionary with datetime (keys), value (values) pairs
+            Note, time resolution of the result depends on the time range spanned by start- and endtime
+        """
+        assert parameter in ("Power", "Current", "Voltage", "Energy", "PowerBox Voltage")
+        if starttime is None:
+            now = datetime.now()
+            starttime = datetime(now.year, now.month, now.day)
+        if isinstance(starttime, datetime):
+            starttime = int(starttime.timestamp() * 1000)
+        if endtime is None:
+            endtime = int(starttime + timedelta(days=1).total_seconds() * 1000)
+        if isinstance(endtime, datetime):
+            endtime = int(endtime.timestamp() * 1000)
+
+        url = 'https://monitoring.solaredge.com/solaredge-web/p/chartData?reporterId={}&fieldId={}&reporterType=&startDate={:d}&endDate={:d}&uom=W&parameterName={}'.format(
+            itemId, self.siteid,
+            starttime, endtime, parameter
+        )
+
+        r = self._doRequest("GET", url)
+        if r.startswith("ERROR001"):
+            raise Exception("Error while doing request: %s" % r)
+
+        json_object = self.decodeResult(r)
+        try:
+            return {datetime.fromtimestamp(pair['date']/1000): pair['value'] for pair in json_object['dateValuePairs']}
+        except Exception as e:
+            raise Exception("Error while processing data") from e
+
+    def requestHistoricalData(self, starttime=None, endtime=None, parameter="Power"):
+
+        solarsite = self.requestListOfAllPanels()
+
+        data = {}
+        for inverter in solarsite.inverters:
+            for string in inverter.strings:
+                for optimizer in string.optimizers:
+                    info = self.requestPanelHistory(optimizer.optimizerId, starttime, endtime, parameter)
+                    data[optimizer] = info
+
+        return data
+
     def _doRequest(self, method, request_url, data=None):
         session = Session()
         session.head(

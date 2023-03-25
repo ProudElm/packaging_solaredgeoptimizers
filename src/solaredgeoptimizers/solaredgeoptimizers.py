@@ -86,7 +86,7 @@ class solaredgeoptimizers:
 
         return data
 
-    def _doPostRequest(self, request_url, data=None):
+    def _doRequest(self, method, request_url, data=None):
         session = Session()
         session.head(
             "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy".format(
@@ -107,7 +107,8 @@ class solaredgeoptimizers:
         thecrsftoken = self.GetThecsrfToken(session.cookies.get_dict())
 
         # Build up the request.
-        response = session.post(
+        response = session.request(
+            method=method,
             url=request_url,
             headers={
                 "authority": "monitoring.solaredge.com",
@@ -142,7 +143,7 @@ class solaredgeoptimizers:
         url = "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy?timeUnit=ALL".format(
             self.siteid
         )
-        return self._doPostRequest(url)
+        return self._doRequest("POST", url)
 
     def getAlerts(self, only_open=False):
         # Note: this might require FULL_ACCESS rights in the SE portal, as opposed to DASHBOARD_AND_LAYOUT
@@ -154,7 +155,7 @@ class solaredgeoptimizers:
             data = [{"fieldFilterOperator": "IN",
                      "fieldName": "status",
                      "fieldValue": ["OPEN"]}]
-        return self._doPostRequest(url, data=json.dumps(data))
+        return self._doRequest("POST", url, data=json.dumps(data))
 
     def GetThecsrfToken(self, cookies):
         for cookie in cookies:

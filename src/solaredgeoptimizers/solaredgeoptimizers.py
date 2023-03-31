@@ -119,7 +119,8 @@ class solaredgeoptimizers:
 
         json_object = self.decodeResult(r)
         try:
-            return {datetime.fromtimestamp(pair['date']/1000): pair['value'] for pair in json_object['dateValuePairs']}
+            # Note: the timestamp provided by SolarEdge is not a pure POSIX timestamp, but in fact contains a timezone offset.
+            return {datetime.utcfromtimestamp(pair['date']/1000).astimezone(pytz.utc): pair['value'] for pair in json_object['dateValuePairs']}
         except Exception as e:
             raise Exception("Error while processing data") from e
 

@@ -86,7 +86,7 @@ class solaredgeoptimizers:
 
         return data
 
-    def getLifeTimeEnergy(self):
+    def _doPostRequest(self, request_url, data=None):
         session = Session()
         session.head(
             "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy".format(
@@ -108,9 +108,7 @@ class solaredgeoptimizers:
 
         # Build up the request.
         response = session.post(
-            url="https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy?timeUnit=ALL".format(
-                self.siteid
-            ),
+            url=request_url,
             headers={
                 "authority": "monitoring.solaredge.com",
                 "accept": "*/*",
@@ -132,12 +130,31 @@ class solaredgeoptimizers:
                 "x-kl-ajax-request": "Ajax_Request",
                 "x-requested-with": "XMLHttpRequest",
             },
+            data=data
         )
 
         if response.status_code == 200:
             return response.text
         else:
             return "ERROR001 - HTTP CODE: {}".format(response.status_code)
+
+    def getLifeTimeEnergy(self):
+        url = "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy?timeUnit=ALL".format(
+            self.siteid
+        )
+        return self._doPostRequest(url)
+
+    def getAlerts(self, only_open=False):
+        # Note: this might require FULL_ACCESS rights in the SE portal, as opposed to DASHBOARD_AND_LAYOUT
+        url = "https://monitoring.solaredge.com/solaredge-apigw/api/rna/v1.0/site/{}/alerts".format(
+            self.siteid
+        )
+        data = None
+        if only_open:
+            data = [{"fieldFilterOperator": "IN",
+                     "fieldName": "status",
+                     "fieldValue": ["OPEN"]}]
+        return self._doPostRequest(url, data=json.dumps(data))
 
     def GetThecsrfToken(self, cookies):
         for cookie in cookies:

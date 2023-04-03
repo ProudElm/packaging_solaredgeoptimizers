@@ -86,7 +86,58 @@ class solaredgeoptimizers:
 
         return data
 
-    def _doPostRequest(self, request_url, data=None):
+    def requestPanelHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+        """
+        Request measurement history of a panel given a time window defined by start- and endtime
+        :param itemId: itemId of the panel
+        :param starttime: starttime as datetime or unix timestamp in ms, or None for start of today
+        :param endtime: endtime as datetime or unix timestamp in ms, or None for 24 hour after starttime
+        :param parameter: the measurement parameter to return, choose from:
+            {"Power", "Current", "Voltage", "Energy", "PowerBox Voltage"}
+        :return: dictionary with datetime (keys), value (values) pairs
+            Note, time resolution of the result depends on the time range spanned by start- and endtime
+        """
+        assert parameter in ("Power", "Current", "Voltage", "Energy", "PowerBox Voltage")
+        if starttime is None:
+            now = datetime.now()
+            starttime = datetime(now.year, now.month, now.day)
+        if isinstance(starttime, datetime):
+            starttime = int(starttime.timestamp() * 1000)
+        if endtime is None:
+            endtime = int(starttime + timedelta(days=1).total_seconds() * 1000)
+        if isinstance(endtime, datetime):
+            endtime = int(endtime.timestamp() * 1000)
+
+        url = 'https://monitoring.solaredge.com/solaredge-web/p/chartData?reporterId={}&fieldId={}&reporterType=&startDate={:d}&endDate={:d}&uom=W&parameterName={}'.format(
+            itemId, self.siteid,
+            starttime, endtime, parameter
+        )
+
+        r = self._doRequest("GET", url)
+        if r.startswith("ERROR001"):
+            raise Exception("Error while doing request: %s" % r)
+
+        json_object = self.decodeResult(r)
+        try:
+            # Note: the timestamp provided by SolarEdge is not a pure POSIX timestamp, but in fact contains a timezone offset.
+            return {datetime.utcfromtimestamp(pair['date']/1000).astimezone(pytz.utc): pair['value'] for pair in json_object['dateValuePairs']}
+        except Exception as e:
+            raise Exception("Error while processing data") from e
+
+    def requestHistoricalData(self, starttime=None, endtime=None, parameter="Power"):
+
+        solarsite = self.requestListOfAllPanels()
+
+        data = {}
+        for inverter in solarsite.inverters:
+            for string in inverter.strings:
+                for optimizer in string.optimizers:
+                    info = self.requestPanelHistory(optimizer.optimizerId, starttime, endtime, parameter)
+                    data[optimizer] = info
+
+        return data
+
+    def _doRequest(self, method, request_url, data=None):
         session = Session()
         session.head(
             "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy".format(
@@ -107,7 +158,8 @@ class solaredgeoptimizers:
         thecrsftoken = self.GetThecsrfToken(session.cookies.get_dict())
 
         # Build up the request.
-        response = session.post(
+        response = session.request(
+            method=method,
             url=request_url,
             headers={
                 "authority": "monitoring.solaredge.com",
@@ -142,7 +194,7 @@ class solaredgeoptimizers:
         url = "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy?timeUnit=ALL".format(
             self.siteid
         )
-        return self._doPostRequest(url)
+        return self._doRequest("POST", url)
 
     def getAlerts(self, only_open=False):
         # Note: this might require FULL_ACCESS rights in the SE portal, as opposed to DASHBOARD_AND_LAYOUT
@@ -154,7 +206,7 @@ class solaredgeoptimizers:
             data = [{"fieldFilterOperator": "IN",
                      "fieldName": "status",
                      "fieldValue": ["OPEN"]}]
-        return self._doPostRequest(url, data=json.dumps(data))
+        return self._doRequest("POST", url, data=json.dumps(data))
 
     def GetThecsrfToken(self, cookies):
         for cookie in cookies:

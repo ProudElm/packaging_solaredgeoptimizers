@@ -21,6 +21,8 @@ class solaredgeoptimizers:
 
         kwargs = {}
         kwargs["auth"] = requests.auth.HTTPBasicAuth(self.username, self.password)
+        kwargs["headers"] = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
+                             }
         r = requests.get(url, **kwargs)
 
         return r.status_code
@@ -142,7 +144,9 @@ class solaredgeoptimizers:
         session.head(
             "https://monitoring.solaredge.com/solaredge-apigw/api/sites/{}/layout/energy".format(
                 self.siteid
-            )
+            ),
+            headers={"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
+                     }
         )
 
         url = "https://monitoring.solaredge.com/solaredge-web/p/login"

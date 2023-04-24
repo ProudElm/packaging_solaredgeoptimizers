@@ -86,18 +86,17 @@ class solaredgeoptimizers:
 
         return data
 
-    def requestPanelHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+    def requestItemHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
         """
         Request measurement history of a panel given a time window defined by start- and endtime
-        :param itemId: itemId of the panel
+        :param itemId: itemId of the item (panel, string, inverter)
         :param starttime: starttime as datetime or unix timestamp in ms, or None for start of today
         :param endtime: endtime as datetime or unix timestamp in ms, or None for 24 hour after starttime
-        :param parameter: the measurement parameter to return, choose from:
-            {"Power", "Current", "Voltage", "Energy", "PowerBox Voltage"}
+        :param parameter: the measurement parameter to return
+            a list of available parameters can be obtained using: https://monitoring.solaredge.com/solaredge-web/p/chartParamsList?fieldId={}reporterId={}&format=form
         :return: dictionary with datetime (keys), value (values) pairs
             Note, time resolution of the result depends on the time range spanned by start- and endtime
         """
-        assert parameter in ("Power", "Current", "Voltage", "Energy", "PowerBox Voltage")
         if starttime is None:
             now = datetime.now()
             starttime = datetime(now.year, now.month, now.day)
@@ -124,16 +123,41 @@ class solaredgeoptimizers:
         except Exception as e:
             raise Exception("Error while processing data") from e
 
-    def requestHistoricalData(self, starttime=None, endtime=None, parameter="Power"):
+    def requestPanelHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+        assert parameter in ("Power", "Current", "Voltage", "Energy", "PowerBox Voltage")
+        return self.requestItemHistory(itemId, starttime=starttime, endtime=endtime, parameter=parameter)
+
+    def requestStringHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+        assert parameter in ("Energy", "Power")
+        return self.requestItemHistory(itemId, starttime=starttime, endtime=endtime, parameter=parameter)
+
+    def requestInverterHistory(self, itemId, starttime=None, endtime=None, parameter="Power"):
+        # https://monitoring.solaredge.com/solaredge-web/p/chartParamsList?fieldId={}reporterId={}&format=form
+        assert parameter in ("AC Energy",
+                             "AC Frequency", "AC Frequency P2", "AC Frequency P3",
+                             "AC Voltage", "AC Voltage P2", "AC Voltage P3",
+                             "AC Current", "AC Current P2", "AC Current P3",
+                             "Power", "DC Voltage", "Purchased back feed AC Energy", "Total Reactive Power", "Power Factor")
+        return self.requestItemHistory(itemId, starttime=starttime, endtime=endtime, parameter=parameter)
+
+    def requestHistoricalData(self, starttime=None, endtime=None, type="optimizer", parameter="Power"):
+        assert type in ("optimizer", "inverter", "string")
 
         solarsite = self.requestListOfAllPanels()
 
         data = {}
         for inverter in solarsite.inverters:
+            if "inverter" in type:
+                info = self.requestInverterHistory(inverter.inverterId, starttime, endtime, parameter)
+                data[inverter] = info
             for string in inverter.strings:
+                if "string" in type:
+                    info = self.requestStringHistory(string.stringId, starttime, endtime, parameter)
+                    data[string] = info
                 for optimizer in string.optimizers:
-                    info = self.requestPanelHistory(optimizer.optimizerId, starttime, endtime, parameter)
-                    data[optimizer] = info
+                    if "optimizer" in type:
+                        info = self.requestPanelHistory(optimizer.optimizerId, starttime, endtime, parameter)
+                        data[optimizer] = info
 
         return data
 

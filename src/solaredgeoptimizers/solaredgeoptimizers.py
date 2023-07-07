@@ -1,4 +1,6 @@
 """ My module """
+import time
+
 import requests
 import json
 import logging
@@ -114,7 +116,7 @@ class solaredgeoptimizers:
             starttime, endtime, parameter
         )
 
-        r = self._doRequest("GET", url)
+        r = self._doRequestWithCooldown("GET", url)
         if r.startswith("ERROR001"):
             raise Exception("Error while doing request: %s" % r)
 
@@ -162,6 +164,24 @@ class solaredgeoptimizers:
                         data[optimizer] = info
 
         return data
+
+    def _doRequestWithCooldown(self, method, request_url, data=None, wait_sec=0.1, cooldown_sec=5, n_retries=3):
+        """
+        Same as _doRequest, but waiting before each call, and in between retries in case it fails
+        """
+        e = Exception("Could not perform request within %d retries" % n_retries)
+        for i in range(n_retries):
+            try:
+                time.sleep(wait_sec)
+                res = self._doRequest(method=method, request_url=request_url, data=data)
+                return res
+            except ConnectionError as e:
+                if isinstance(e.args[0], Exception) and len(e.args[0].args) > 1 and \
+                        isinstance(e.args[0].args[1], ConnectionResetError) and e.args[0].args[1].errno == 10054:
+                    time.sleep(cooldown_sec)
+                    continue
+                raise e
+        raise e
 
     def _doRequest(self, method, request_url, data=None):
         session = Session()
